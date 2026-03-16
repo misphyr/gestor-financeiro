@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { storage, calculateMonthlyForecast } from '../utils/storage';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Download } from 'lucide-react';
+import { Download, Copy, Check } from 'lucide-react';
 
 export default function Reports() {
   const [reportMonth, setReportMonth] = useState(new Date().getMonth());
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     window.addEventListener('expenseAdded', () => {});
@@ -13,7 +15,7 @@ export default function Reports() {
   }, []);
 
   const expenses = storage.expenses.getAll();
-  const subscriptions = storage.subscriptions.getAll().filter(s => s.active);
+  const subscriptions = storage.subscriptions.getAll().filter(s => !s.canceledDate);
   const forecast = calculateMonthlyForecast(reportYear, reportMonth);
 
   const months = [
@@ -30,10 +32,16 @@ export default function Reports() {
   const getMonthExpenses = () => {
     const targetDate = new Date(reportYear, reportMonth, 1);
     const nextMonthDate = new Date(reportYear, reportMonth + 1, 1);
-    return expenses.filter(e => {
+    let result = expenses.filter(e => {
       const eDate = new Date(e.date);
       return eDate >= targetDate && eDate < nextMonthDate;
     });
+
+    if (categoryFilter !== 'all') {
+      result = result.filter(e => e.category === categoryFilter);
+    }
+
+    return result;
   };
 
   const expensesByCategory = () => {
@@ -66,20 +74,29 @@ export default function Reports() {
     };
 
     const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    
+    // Tenta usar download nativo primeiro (desktop)
+    if (typeof navigator !== 'undefined' && navigator.msSaveBlob) {
+      const blob = new Blob([json], { type: 'application/json' });
+      navigator.msSaveBlob(blob, `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.json`);
+    } else if (typeof document !== 'undefined') {
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(json));
+      element.setAttribute('download', `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.json`);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleExportCSV = () => {
-    const monthExpenses = getMonthExpenses();
     let csv = 'Data,Categoria,Descrição,Valor\n';
     
-    monthExpenses.forEach(e => {
+    getMonthExpenses().forEach(e => {
       csv += `${e.date},"${e.category}","${e.description || ''}",${e.amount}\n`;
     });
 
@@ -87,13 +104,21 @@ export default function Reports() {
       csv += `,"${s.name}","${s.frequency === 'monthly' ? 'Mensal' : 'Anual'}",${s.amount}\n`;
     });
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (typeof navigator !== 'undefined' && navigator.msSaveBlob) {
+      const blob = new Blob([csv], { type: 'text/csv' });
+      navigator.msSaveBlob(blob, `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.csv`);
+    } else if (typeof document !== 'undefined') {
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      element.setAttribute('download', `relatorio-${reportYear}-${String(reportMonth + 1).padStart(2, '0')}.csv`);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const categoryData = expensesByCategory();
@@ -104,7 +129,7 @@ export default function Reports() {
       {/* Controls */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-          <div className="grid grid-cols-2 gap-4 flex-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 flex-1 w-full">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Mês
@@ -134,21 +159,46 @@ export default function Reports() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categoria
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todas categorias</option>
+                {storage.categories.getAll().map(cat => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex gap-2 w-full md:w-auto">
             <button
               onClick={handleExport}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
+              title="Baixar como JSON"
             >
-              <Download size={18} /> JSON
+              <Download size={16} /> JSON
             </button>
             <button
               onClick={handleExportCSV}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
+              title="Baixar como CSV"
             >
-              <Download size={18} /> CSV
+              <Download size={16} /> CSV
             </button>
+            {copied && (
+              <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
+                <Check size={16} /> Exportado!
+              </div>
+            )}
           </div>
         </div>
       </div>

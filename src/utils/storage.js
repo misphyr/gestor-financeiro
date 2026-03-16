@@ -4,14 +4,31 @@ export const storage = {
     getAll: () => JSON.parse(localStorage.getItem('expenses')) || [],
     add: (expense) => {
       const expenses = storage.expenses.getAll();
-      const newExpense = {
-        id: Date.now(),
-        ...expense,
-        date: new Date(expense.date).toISOString().split('T')[0]
-      };
-      expenses.push(newExpense);
+      const installments = expense.installments || 1;
+      const baseDate = new Date(expense.date);
+      const totalAmount = parseFloat(expense.amount);
+      const installmentAmount = totalAmount / installments;
+      const createdExpenses = [];
+
+      // Create an entry for each installment
+      for (let i = 0; i < installments; i++) {
+        const installmentDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate());
+        const newExpense = {
+          id: Date.now() + i, // Unique ID for each installment
+          amount: installmentAmount,
+          category: expense.category,
+          description: expense.description,
+          date: installmentDate.toISOString().split('T')[0],
+          installmentNumber: i + 1,
+          totalInstallments: installments,
+          originalDate: new Date(expense.date).toISOString().split('T')[0]
+        };
+        expenses.push(newExpense);
+        createdExpenses.push(newExpense);
+      }
+
       localStorage.setItem('expenses', JSON.stringify(expenses));
-      return newExpense;
+      return createdExpenses;
     },
     delete: (id) => {
       const expenses = storage.expenses.getAll().filter(e => e.id !== id);
@@ -34,7 +51,8 @@ export const storage = {
       const newSub = {
         id: Date.now(),
         ...subscription,
-        active: true
+        startDate: subscription.startDate || new Date().toISOString().split('T')[0],
+        canceledDate: null
       };
       subs.push(newSub);
       localStorage.setItem('subscriptions', JSON.stringify(subs));
@@ -93,8 +111,7 @@ export const storage = {
 
 export const calculateMonthlyForecast = (year, month) => {
   const expenses = storage.expenses.getAll();
-  const subscriptions = storage.subscriptions.getAll()
-    .filter(s => s.active);
+  const subscriptions = storage.subscriptions.getAll();
 
   const targetDate = new Date(year, month, 1);
   const nextMonthDate = new Date(year, month + 1, 1);
@@ -105,14 +122,36 @@ export const calculateMonthlyForecast = (year, month) => {
     return eDate >= targetDate && eDate < nextMonthDate;
   });
 
-  // Assinaturas mensais
+  // Assinaturas mensais - considera startDate e canceledDate
   const monthlySubsTotal = subscriptions
-    .filter(s => s.frequency === 'monthly')
+    .filter(s => {
+      if (s.frequency !== 'monthly') return false;
+      const startDate = new Date(s.startDate);
+      const cancelDate = s.canceledDate ? new Date(s.canceledDate) : null;
+      
+      // Conta se começou antes ou durante este mês
+      if (startDate >= nextMonthDate) return false;
+      // Conta se não foi cancelada ou se foi cancelada depois que o mês começou
+      if (cancelDate && cancelDate <= targetDate) return false;
+      
+      return true;
+    })
     .reduce((acc, s) => acc + parseFloat(s.amount || 0), 0);
 
-  // Anuidades (divididas por 12)
+  // Anuidades (divididas por 12) - considera startDate e canceledDate
   const annualSubsTotal = subscriptions
-    .filter(s => s.frequency === 'annual')
+    .filter(s => {
+      if (s.frequency !== 'annual') return false;
+      const startDate = new Date(s.startDate);
+      const cancelDate = s.canceledDate ? new Date(s.canceledDate) : null;
+      
+      // Conta se começou antes ou durante este mês
+      if (startDate >= nextMonthDate) return false;
+      // Conta se não foi cancelada ou se foi cancelada depois que o mês começou
+      if (cancelDate && cancelDate <= targetDate) return false;
+      
+      return true;
+    })
     .reduce((acc, s) => acc + (parseFloat(s.amount || 0) / 12), 0);
 
   // Gastos variáveis do mês

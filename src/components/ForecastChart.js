@@ -26,9 +26,9 @@ export default function ForecastChart() {
     const forecast = calculateMonthlyForecast(selectedYear, selectedMonth);
     setCurrentMonthForecast(forecast);
 
-    // Generate forecast for next 6 months
+    // Generate forecast for next 12 months
     const data = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       const d = new Date(selectedYear, selectedMonth + i);
       const f = calculateMonthlyForecast(d.getFullYear(), d.getMonth());
       data.push({
@@ -123,14 +123,19 @@ export default function ForecastChart() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Bar Chart */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-bold mb-4 text-gray-800">Previsão - Próximos 6 Meses</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={forecastData}>
+          <h3 className="text-lg font-bold mb-4 text-gray-800">Previsão - Próximos 12 Meses</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={forecastData} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
+              <XAxis 
+                dataKey="month" 
+                angle={-45}
+                textAnchor="end"
+                height={100}
+              />
               <YAxis />
               <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
               <Legend />
@@ -144,7 +149,7 @@ export default function ForecastChart() {
         {/* Pie Chart */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-bold mb-4 text-gray-800">Distribuição - {months[selectedMonth]} {selectedYear}</h3>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={350}>
             <PieChart>
               <Pie
                 data={pieData}
@@ -168,11 +173,16 @@ export default function ForecastChart() {
 
       {/* Line Chart */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-bold mb-4 text-gray-800">Evolução Total - Próximos 6 Meses</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={forecastData}>
+        <h3 className="text-lg font-bold mb-4 text-gray-800">Evolução Total - Próximos 12 Meses</h3>
+        <ResponsiveContainer width="100%" height={400}>
+          <LineChart data={forecastData} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
+            <XAxis 
+              dataKey="month"
+              angle={-45}
+              textAnchor="end"
+              height={100}
+            />
             <YAxis />
             <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
             <Legend />
