@@ -66,7 +66,7 @@ export default function CategorySelect({ value, onChange, includeAll = false }) 
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
           {allCategories.map(cat => {
             const CatIcon = getIconComponent(cat.icon || 'MoreHorizontal');
             const catValue = includeAll && cat.id === 'all' ? 'all' : cat.name;

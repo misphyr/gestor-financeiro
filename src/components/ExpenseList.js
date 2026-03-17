@@ -3,12 +3,15 @@ import { storage } from '../utils/storage';
 import { getIconComponent } from '../utils/icons';
 import { Trash2 } from 'lucide-react';
 import CategorySelect from './CategorySelect';
+import ExpenseForm from './ExpenseForm';
+import AlertModal from './AlertModal';
 
 export default function ExpenseList() {
   const [expenses, setExpenses] = useState([]);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('month');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [groupInstallments, setGroupInstallments] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     loadExpenses();
@@ -26,10 +29,23 @@ export default function ExpenseList() {
     ));
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Tem certeza?')) {
-      storage.expenses.delete(id);
+  const handleDelete = (id, groupedIds = null) => {
+    setDeleteConfirm({ id, groupedIds });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      // If it's a grouped expense, delete all expenses in the group
+      if (deleteConfirm.groupedIds && deleteConfirm.groupedIds.length > 0) {
+        deleteConfirm.groupedIds.forEach(expenseId => {
+          storage.expenses.delete(expenseId);
+        });
+      } else {
+        // Single expense
+        storage.expenses.delete(deleteConfirm.id);
+      }
       loadExpenses();
+      setDeleteConfirm(null);
     }
   };
 
@@ -64,16 +80,19 @@ export default function ExpenseList() {
     if (groupInstallments) {
       const groupedMap = {};
       result.forEach(e => {
-        const key = e.originalDate || e.date + e.description;
+        // Include category and description in the key to avoid grouping different expenses
+        const key = (e.originalDate || e.date) + '|' + e.category + '|' + (e.description || '');
         if (!groupedMap[key]) {
           groupedMap[key] = {
             ...e,
             isGrouped: true,
             installmentCount: e.totalInstallments || 1,
-            totalAmount: 0
+            totalAmount: 0,
+            groupedIds: [] // Track all IDs in this group
           };
         }
         groupedMap[key].totalAmount += parseFloat(e.amount || 0);
+        groupedMap[key].groupedIds.push(e.id); // Add all IDs to the group
       });
       return Object.values(groupedMap).sort((a, b) => 
         new Date(b.date) - new Date(a.date)
@@ -89,8 +108,48 @@ export default function ExpenseList() {
     categoryMap[cat.name] = cat;
   });
 
+  // Calculate summary statistics for current month
+  const today = new Date();
+  const currentMonth = today.getFullYear() * 100 + (today.getMonth() + 1);
+  
+  const monthExpenses = expenses.filter(e => {
+    const eDate = new Date(e.date);
+    const eMonth = eDate.getFullYear() * 100 + (eDate.getMonth() + 1);
+    return eMonth === currentMonth;
+  });
+
+  const totalExpensesMonth = monthExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+  const averageExpense = monthExpenses.length > 0 ? totalExpensesMonth / monthExpenses.length : 0;
+  const maxExpense = monthExpenses.length > 0 ? Math.max(...monthExpenses.map(e => parseFloat(e.amount || 0))) : 0;
+
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="w-full space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Total do Mês</p>
+          <p className="text-3xl font-bold">R$ {totalExpensesMonth.toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">{monthExpenses.length} gastos</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Média de Gastos</p>
+          <p className="text-3xl font-bold">R$ {averageExpense.toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">Por transação</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Maior Gasto</p>
+          <p className="text-3xl font-bold">R$ {maxExpense.toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">Neste mês</p>
+        </div>
+      </div>
+
+      {/* Add Expense Form */}
+      <ExpenseForm />
+
+      {/* Expenses List */}
+      <div className="bg-white rounded-lg shadow-md p-6">
       <div className="mb-4">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Gastos Recentes</h2>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -162,20 +221,33 @@ export default function ExpenseList() {
                   <span className="font-bold text-gray-900">
                     R$ {parseFloat(displayAmount).toFixed(2)}
                   </span>
-                  {!isGrouped && (
-                    <button
-                      onClick={() => handleDelete(expense.id)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDelete(expense.id, isGrouped ? expense.groupedIds : null)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+      </div>
+
+      <AlertModal
+        isOpen={deleteConfirm !== null}
+        type="danger"
+        title="Confirmar Exclusão"
+        message={deleteConfirm?.groupedIds && deleteConfirm.groupedIds.length > 1
+          ? `Tem certeza que deseja remover todas as ${deleteConfirm.groupedIds.length} parcelas deste gasto? Esta ação não pode ser desfeita.`
+          : "Tem certeza que deseja remover este gasto? Esta ação não pode ser desfeita."
+        }
+        confirmText="Remover"
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }

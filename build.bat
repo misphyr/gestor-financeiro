@@ -21,6 +21,7 @@ echo [3/4] Fixing Java versions...
 cd android
 powershell -Command "(Get-Content app\capacitor.build.gradle) -replace 'VERSION_21', 'VERSION_17' | Set-Content app\capacitor.build.gradle"
 powershell -Command "(Get-Content capacitor-cordova-android-plugins\build.gradle) -replace 'VERSION_21', 'VERSION_17' | Set-Content capacitor-cordova-android-plugins\build.gradle"
+powershell -Command "(Get-Content ..\node_modules\@capacitor\app\android\build.gradle) -replace 'VERSION_21', 'VERSION_17' | Set-Content ..\node_modules\@capacitor\app\android\build.gradle"
 
 REM Step 4: Build APK
 echo.

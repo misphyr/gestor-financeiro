@@ -16,9 +16,11 @@ export default function ForecastChart() {
   useEffect(() => {
     window.addEventListener('expenseAdded', loadForecast);
     window.addEventListener('subscriptionAdded', loadForecast);
+    window.addEventListener('incomeAdded', loadForecast);
     return () => {
       window.removeEventListener('expenseAdded', loadForecast);
       window.removeEventListener('subscriptionAdded', loadForecast);
+      window.removeEventListener('incomeAdded', loadForecast);
     };
   }, [])
 
@@ -36,7 +38,9 @@ export default function ForecastChart() {
         Gastos: f.expenses,
         'Mensalidades': f.subscriptions,
         'Anuidades': f.annual,
-        Total: f.total
+        Entradas: f.incomes,
+        Total: f.total,
+        Saldo: f.balance
       });
     }
     setForecastData(data);
@@ -60,10 +64,11 @@ export default function ForecastChart() {
   const pieData = [
     { name: 'Gastos', value: currentMonthForecast.expenses },
     { name: 'Mensalidades', value: currentMonthForecast.subscriptions },
-    { name: 'Anuidades', value: currentMonthForecast.annual }
+    { name: 'Anuidades', value: currentMonthForecast.annual },
+    { name: 'Entradas', value: currentMonthForecast.incomes }
   ];
 
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B'];
+  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#10B981'];
 
   return (
     <div className="space-y-6">
@@ -103,7 +108,7 @@ export default function ForecastChart() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-6">
           <p className="text-sm opacity-90 mb-1">Gastos Variáveis</p>
           <p className="text-3xl font-bold">R$ {currentMonthForecast.expenses.toFixed(2)}</p>
@@ -116,9 +121,13 @@ export default function ForecastChart() {
           <p className="text-sm opacity-90 mb-1">Anuidades (mês)</p>
           <p className="text-3xl font-bold">R$ {currentMonthForecast.annual.toFixed(2)}</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-md p-6">
-          <p className="text-sm opacity-90 mb-1">Total Previsto</p>
-          <p className="text-3xl font-bold">R$ {currentMonthForecast.total.toFixed(2)}</p>
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-1">Entradas</p>
+          <p className="text-3xl font-bold">R$ {currentMonthForecast.incomes.toFixed(2)}</p>
+        </div>
+        <div className={`bg-gradient-to-br ${currentMonthForecast.balance >= 0 ? 'from-teal-500 to-teal-600' : 'from-red-500 to-red-600'} text-white rounded-lg shadow-md p-6`}>
+          <p className="text-sm opacity-90 mb-1">Saldo do Mês</p>
+          <p className="text-3xl font-bold">{currentMonthForecast.balance >= 0 ? '+' : ''} R$ {Math.abs(currentMonthForecast.balance).toFixed(2)}</p>
         </div>
       </div>
 
@@ -142,6 +151,7 @@ export default function ForecastChart() {
               <Bar dataKey="Gastos" fill="#3B82F6" />
               <Bar dataKey="Mensalidades" fill="#10B981" />
               <Bar dataKey="Anuidades" fill="#F59E0B" />
+              <Bar dataKey="Entradas" fill="#059669" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -187,6 +197,14 @@ export default function ForecastChart() {
             <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
             <Legend />
             <Line type="monotone" dataKey="Total" stroke="#EF4444" strokeWidth={2} />
+            <Line type="monotone" dataKey="Entradas" stroke="#10B981" strokeWidth={2} />
+            <Line 
+              type="monotone" 
+              dataKey="Saldo" 
+              stroke="#0EA5E9" 
+              strokeWidth={2}
+              strokeDasharray="5 5"
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

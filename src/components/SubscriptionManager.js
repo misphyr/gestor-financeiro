@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
 import { getIconComponent } from '../utils/icons';
-import { Trash2, RotateCcw, AlertCircle } from 'lucide-react';
+import { Trash2, RotateCcw, AlertCircle, Users, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import CategorySelect from './CategorySelect';
+import ShareModal from './ShareModal';
+import AlertModal from './AlertModal';
 
 export default function SubscriptionManager() {
+  const [formOpen, setFormOpen] = useState(false);
   const [subscriptions, setSubscriptions] = useState([]);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -14,6 +17,10 @@ export default function SubscriptionManager() {
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const [cancelConfirm, setCancelConfirm] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isShared, setIsShared] = useState(false);
+  const [sharedWith, setSharedWith] = useState([]);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
     loadSubscriptions();
@@ -33,6 +40,11 @@ export default function SubscriptionManager() {
       return;
     }
 
+    if (isShared && sharedWith.length === 0) {
+      setError('Defina as pessoas para dividir');
+      return;
+    }
+
     try {
       storage.subscriptions.add({
         name,
@@ -40,7 +52,9 @@ export default function SubscriptionManager() {
         frequency,
         category,
         startDate,
-        description
+        description,
+        isShared,
+        sharedWith: isShared ? sharedWith : []
       });
       setName('');
       setAmount('');
@@ -48,6 +62,8 @@ export default function SubscriptionManager() {
       setCategory('Outras');
       setStartDate(new Date().toISOString().split('T')[0]);
       setDescription('');
+      setIsShared(false);
+      setSharedWith([]);
       setError('');
       loadSubscriptions();
       window.dispatchEvent(new Event('subscriptionAdded'));
@@ -57,10 +73,15 @@ export default function SubscriptionManager() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Deletar permanentemente? Esta ação não pode ser desfeita.')) {
-      storage.subscriptions.delete(id);
+    setDeleteConfirm(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      storage.subscriptions.delete(deleteConfirm);
       loadSubscriptions();
       window.dispatchEvent(new Event('subscriptionAdded'));
+      setDeleteConfirm(null);
     }
   };
 
@@ -90,18 +111,48 @@ export default function SubscriptionManager() {
   const canceledSubscriptions = subscriptions.filter(s => s.canceledDate);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
+      {/* Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Mensalidades</p>
+          <p className="text-3xl font-bold">R$ {monthlyTotal.toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">{subscriptions.filter(s => !s.canceledDate && s.frequency === 'monthly').length} assinaturas</p>
+        </div>
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Anuidades (por mês)</p>
+          <p className="text-3xl font-bold">R$ {(annualTotal / 12).toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">{subscriptions.filter(s => !s.canceledDate && s.frequency === 'annual').length} assinaturas</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-md p-6">
+          <p className="text-sm opacity-90 mb-2">Total Mensal</p>
+          <p className="text-3xl font-bold">R$ {(monthlyTotal + annualTotal / 12).toFixed(2)}</p>
+          <p className="text-xs opacity-75 mt-2">{activeSubscriptions.length} assinaturas ativas</p>
+        </div>
+      </div>
+
       {/* Form */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">Adicionar Assinatura</h2>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <button
+          onClick={() => setFormOpen(!formOpen)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2 text-lg font-bold text-gray-800">
+            <Plus size={20} />
+            Adicionar Assinatura
           </div>
-        )}
+          {formOpen ? <ChevronUp size={20} className="text-gray-600" /> : <ChevronDown size={20} className="text-gray-600" />}
+        </button>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {formOpen && (
+          <div className="px-6 pb-6 border-t border-gray-200">
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -185,29 +236,51 @@ export default function SubscriptionManager() {
             </div>
           </div>
 
+          {/* Shared Subscription Section */}
+          <div className="border-t pt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isShared}
+                onChange={(e) => {
+                  setIsShared(e.target.checked);
+                  if (!e.target.checked) {
+                    setSharedWith([]);
+                  }
+                }}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium text-gray-700">É compartilhado?</span>
+            </label>
+            
+            {isShared && (
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(true)}
+                className="mt-3 w-full flex items-center justify-center gap-2 border-2 border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium py-2 px-4 rounded-md transition-colors"
+              >
+                <Users size={18} /> 
+                {sharedWith.length > 0 ? `${sharedWith.length} pessoas` : 'Definir pessoas'}
+              </button>
+            )}
+          </div>
+
           <button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
           >
             Adicionar Assinatura
           </button>
-        </form>
-      </div>
+            </form>
+          </div>
+        )}
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-6">
-          <p className="text-sm opacity-90 mb-1">Mensalidades</p>
-          <p className="text-3xl font-bold">R$ {monthlyTotal.toFixed(2)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg shadow-md p-6">
-          <p className="text-sm opacity-90 mb-1">Anuidades (por mês)</p>
-          <p className="text-3xl font-bold">R$ {(annualTotal / 12).toFixed(2)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-md p-6">
-          <p className="text-sm opacity-90 mb-1">Total Mensal</p>
-          <p className="text-3xl font-bold">R$ {(monthlyTotal + annualTotal / 12).toFixed(2)}</p>
-        </div>
+        <ShareModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          onSave={setSharedWith}
+          initialSharedWith={sharedWith}
+        />
       </div>
 
       {/* List */}
@@ -235,9 +308,11 @@ export default function SubscriptionManager() {
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{sub.name}</p>
                       <p className="text-sm text-gray-500">
-                        {sub.category} • {sub.frequency === 'monthly' ? 'Mensal' : 'Anual'} • Desde {new Date(sub.startDate).toLocaleDateString('pt-BR')}
-                      </p>
-                      {sub.description && <p className="text-xs text-gray-400">{sub.description}</p>}
+                      {sub.description || sub.category}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {sub.frequency === 'monthly' ? 'Mensal' : 'Anual'} • Desde {new Date(sub.startDate).toLocaleDateString('pt-BR')}
+                    </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -287,6 +362,9 @@ export default function SubscriptionManager() {
                       <div className="flex-1">
                         <p className="font-medium text-gray-700 line-through">{sub.name}</p>
                         <p className="text-sm text-gray-500">
+                          {sub.description || sub.category}
+                        </p>
+                        <p className="text-xs text-gray-400">
                           Cancelado em {new Date(sub.canceledDate).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
@@ -346,6 +424,17 @@ export default function SubscriptionManager() {
           </div>
         </div>
       )}
+
+      <AlertModal
+        isOpen={deleteConfirm !== null}
+        type="danger"
+        title="Confirmar Exclusão"
+        message="Tem certeza que deseja remover permanentemente esta assinatura? Esta ação não pode ser desfeita."
+        confirmText="Remover"
+        cancelText="Manter"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }

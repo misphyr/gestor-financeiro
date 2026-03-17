@@ -21,7 +21,9 @@ export const storage = {
           date: installmentDate.toISOString().split('T')[0],
           installmentNumber: i + 1,
           totalInstallments: installments,
-          originalDate: new Date(expense.date).toISOString().split('T')[0]
+          originalDate: new Date(expense.date).toISOString().split('T')[0],
+          isShared: expense.isShared || false,
+          sharedWith: expense.sharedWith || []
         };
         expenses.push(newExpense);
         createdExpenses.push(newExpense);
@@ -106,12 +108,73 @@ export const storage = {
         localStorage.setItem('categories', JSON.stringify(cats));
       }
     }
+  },
+
+  incomes: {
+    getAll: () => JSON.parse(localStorage.getItem('incomes')) || [],
+    add: (income) => {
+      const incomes = storage.incomes.getAll();
+      const newIncome = {
+        id: Date.now(),
+        amount: parseFloat(income.amount),
+        type: income.type, // 'salary', 'bonus', 'other', or 'recurring'
+        description: income.description || '',
+        date: income.date || new Date().toISOString().split('T')[0],
+        isRecurring: income.isRecurring || false,
+        frequency: income.frequency || null, // 'monthly' or 'annual' if recurring
+        baseDate: income.baseDate || new Date().toISOString().split('T')[0], // Data de início da recorrência
+        lastEditDate: new Date().toISOString().split('T')[0] // Para controlar edições futuras
+      };
+      incomes.push(newIncome);
+      localStorage.setItem('incomes', JSON.stringify(incomes));
+      return newIncome;
+    },
+    delete: (id) => {
+      const incomes = storage.incomes.getAll().filter(i => i.id !== id);
+      localStorage.setItem('incomes', JSON.stringify(incomes));
+    },
+    update: (id, updates) => {
+      const incomes = storage.incomes.getAll();
+      const index = incomes.findIndex(i => i.id === id);
+      if (index !== -1) {
+        incomes[index] = { ...incomes[index], ...updates, lastEditDate: new Date().toISOString().split('T')[0] };
+        localStorage.setItem('incomes', JSON.stringify(incomes));
+      }
+    },
+    getExpandedIncomes: () => {
+      // Retorna todas as entradas expandidas (rendas recorrentes expandidas em entradas mensais)
+      const incomes = storage.incomes.getAll();
+      const expanded = [];
+      
+      incomes.forEach(income => {
+        if (income.isRecurring) {
+          const baseDate = new Date(income.baseDate);
+          // Gera entradas para 24 meses (12 passados + 12 futuros)
+          for (let i = -12; i <= 12; i++) {
+            const genDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
+            const genDateStr = genDate.toISOString().split('T')[0];
+            
+            expanded.push({
+              ...income,
+              date: genDateStr,
+              generatedFromRecurring: true,
+              recurringId: income.id
+            });
+          }
+        } else {
+          expanded.push({ ...income, generatedFromRecurring: false });
+        }
+      });
+      
+      return expanded;
+    }
   }
 };
 
 export const calculateMonthlyForecast = (year, month) => {
   const expenses = storage.expenses.getAll();
   const subscriptions = storage.subscriptions.getAll();
+  const incomes = storage.incomes.getExpandedIncomes();
 
   const targetDate = new Date(year, month, 1);
   const nextMonthDate = new Date(year, month + 1, 1);
@@ -120,6 +183,12 @@ export const calculateMonthlyForecast = (year, month) => {
   const monthExpenses = expenses.filter(e => {
     const eDate = new Date(e.date);
     return eDate >= targetDate && eDate < nextMonthDate;
+  });
+
+  // Entradas do mês atual
+  const monthIncomes = incomes.filter(i => {
+    const iDate = new Date(i.date);
+    return iDate >= targetDate && iDate < nextMonthDate;
   });
 
   // Assinaturas mensais - considera startDate e canceledDate
@@ -158,11 +227,17 @@ export const calculateMonthlyForecast = (year, month) => {
   const monthExpensesTotal = monthExpenses
     .reduce((acc, e) => acc + parseFloat(e.amount || 0), 0);
 
+  // Entradas totais do mês
+  const monthIncomesTotal = monthIncomes
+    .reduce((acc, i) => acc + parseFloat(i.amount || 0), 0);
+
   return {
     expenses: monthExpensesTotal,
     subscriptions: monthlySubsTotal,
     annual: annualSubsTotal,
-    total: monthExpensesTotal + monthlySubsTotal + annualSubsTotal
+    incomes: monthIncomesTotal,
+    total: monthExpensesTotal + monthlySubsTotal + annualSubsTotal,
+    balance: monthIncomesTotal - (monthExpensesTotal + monthlySubsTotal + annualSubsTotal)
   };
 };
 

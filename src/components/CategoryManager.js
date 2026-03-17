@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
 import { AVAILABLE_ICONS, AVAILABLE_COLORS, getIconComponent } from '../utils/icons';
-import { Trash2, Plus, Info } from 'lucide-react';
+import { Trash2, Plus, Info, ChevronUp, ChevronDown } from 'lucide-react';
+import AlertModal from './AlertModal';
 
 export default function CategoryManager() {
   const [categories, setCategories] = useState([]);
@@ -11,6 +12,7 @@ export default function CategoryManager() {
   const [selectedIcon, setSelectedIcon] = useState('ShoppingCart');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     loadCategories();
@@ -69,42 +71,48 @@ export default function CategoryManager() {
       setTimeout(() => setError(''), 3000);
       return;
     }
+    setDeleteConfirm({ id: categoryId, name: categoryName });
+  };
 
-    if (window.confirm(`Remover categoria "${categoryName}"?`)) {
-      storage.categories.delete(categoryId);
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      storage.categories.delete(deleteConfirm.id);
       loadCategories();
       window.dispatchEvent(new Event('categoryAdded'));
+      setDeleteConfirm(null);
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Form */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Gerenciar Categorias</h2>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
-          >
-            <Plus size={18} /> Nova Categoria
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2 text-lg font-bold text-gray-800">
+            <Plus size={20} />
+            Nova Categoria
           </div>
-        )}
-
-        {success && (
-          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">
-            {success}
-          </div>
-        )}
+          {showForm ? <ChevronUp size={20} className="text-gray-600" /> : <ChevronDown size={20} className="text-gray-600" />}
+        </button>
 
         {showForm && (
-          <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg border border-gray-200 space-y-4">
+          <div className="px-6 pb-6 border-t border-gray-200">
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">
+                {success}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Nome da Categoria
@@ -182,19 +190,13 @@ export default function CategoryManager() {
             <div className="flex gap-3">
               <button
                 type="submit"
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
               >
                 Criar Categoria
               </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold py-2 px-4 rounded-md transition-colors"
-              >
-                Cancelar
-              </button>
             </div>
-          </form>
+            </form>
+          </div>
         )}
       </div>
 
@@ -255,6 +257,17 @@ export default function CategoryManager() {
           </p>
         </div>
       </div>
+
+      <AlertModal
+        isOpen={deleteConfirm !== null}
+        type="danger"
+        title="Confirmar Exclusão"
+        message={`Tem certeza que deseja remover a categoria "${deleteConfirm?.name}"? Esta ação não pode ser desfeita.`}
+        confirmText="Remover"
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }
