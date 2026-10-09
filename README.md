@@ -1,165 +1,72 @@
-# Gestor Financeiro 💳
+# Gestor Financeiro
 
-Uma Progressive Web App (PWA) moderna para controle financeiro pessoal, permitindo rastrear gastos, gerir assinaturas e prever despesas futuras.
+App Android (e web) de finanças pessoais: gastos, parcelas, assinaturas, entradas, previsão e
+importação da fatura do cartão Nubank. Os dados ficam só no aparelho.
 
-## ✨ Funcionalidades
+## Funcionalidades
 
-- **Dashboard**: Visão geral com resumo de gastos do mês atual e próximo
-- **Gestão de Gastos**: Adicionar, categorizar e visualizar gastos variáveis
-- **Gestão de Assinaturas**: Controlar mensalidades e anuidades
-- **Previsão de Gastos**: Gráficos com tendências para os próximos 6 meses
-- **Relatórios**: Análise detalhada com gráficos por categoria
-- **Exportação**: Exporte seus dados em JSON ou CSV
-- **PWA**: Funciona offline e pode ser instalada no celular/desktop
+- **Início**: sobra do mês, gastos por categoria, quem comprou, cobranças pendentes e aviso de anuidade
+- **Cadastro rápido** (botão +): valor com teclado próprio, descrição que sugere a categoria pelo
+  histórico, parcelas, dividir com outras pessoas, quem comprou, cartão ou Pix/dinheiro
+- **Previsão**: próximos 6 meses (ou faturas), com estimativa dos gastos variáveis
+- **Lançamentos**: busca e filtros por categoria e por quem comprou; toque para editar
+- **Cartão e fatura**: dia de fechamento e vencimento; os meses podem seguir a fatura, para o total
+  bater com o que o banco cobra
+- **Assinaturas** mensais e anuais (anuidade entra inteira no mês da renovação)
+- **Compras parceladas**: quanto falta pagar e edição da compra inteira
+- **Cobranças**: quem te deve em gastos divididos
+- **Relatórios** em PDF e CSV (para Excel em português), com filtros de categoria e pessoa
+- **Importar CSV** do Nubank (fatura do cartão ou extrato da conta): nomes limpos, categoria sugerida, agrupamento por nome,
+  detecção do que já foi importado, Pix como gasto e recebidos como entrada, opção de desfazer
 
-## 🚀 Como Começar
+## Desenvolvimento
 
-### Pré-requisitos
-- Node.js 14+
-- npm ou yarn
+Requisitos: Node 20+. Feito com React 18 + [Vite](https://vitejs.dev) e testes com Vitest.
 
-### Instalação
-
-1. **Clone ou extraia o projeto**
-```bash
-cd c:\Workspace\pagamentos
-```
-
-2. **Instale as dependências**
 ```bash
 npm install
+npm start          # abre em http://localhost:3000
+npm test           # testes (já rodam no fuso de São Paulo, onde os erros de data aparecem)
+npm run build      # gera a pasta build/ (que o Capacitor copia para o app)
 ```
 
-3. **Inicie o servidor de desenvolvimento**
-```bash
-npm start
+Para conferir uma fatura real na importação sem colocar o arquivo no projeto:
+`$env:CSV_SAMPLE='C:\caminho\fatura.csv'; npm test -- csvImport`.
+
+## APK Android
+
+Requisitos: JDK 21 (`winget install Microsoft.OpenJDK.21`) e Android SDK em `C:\Android\sdk`
+(ou defina `ANDROID_HOME`). Depois:
+
+```bat
+build.bat
 ```
 
-O app abrirá automaticamente em `http://localhost:3000`
+O APK sai em `android\app\build\outputs\apk\debug\app-debug.apk`. Para atualizar o app sem perder
+os dados, o APK precisa ser assinado com a mesma chave de depuração (`%USERPROFILE%\.android\debug.keystore`)
+usada no APK já instalado.
 
-## 🎯 Funcionalidades Principais
-
-### 📊 Dashboard
-Visualize rapidamente:
-- Gasto total do mês atual
-- Previsão para o próximo mês
-- Total de gastos históricos
-- Total de assinaturas
-- Gráfico de tendência
-- Gastos recentes
-
-### 💰 Gastos
-- Adicionar gastos com valor, categoria, data e descrição
-- Filtrar por período (todos, este mês, últimos 30 dias)
-- Deletar gastos
-- Categorias pré-definidas com emojis
-
-### 🔄 Assinaturas
-- Gerenciar assinaturas mensais e anuidades
-- Ativar/desativar assinaturas
-- Visualizar totais mensais e anuais
-- Resumo de custos recorrentes
-
-### 📈 Previsão
-- Gráficos de previsão para 6 meses
-- Breakdown por tipo (gastos variáveis, mensalidades, anuidades)
-- Distribuição em pizza chart
-- Seleção de mês e ano
-
-### 📋 Relatórios
-- Análise detalhada de um período específico
-- Gráficos por categoria
-- Exportação em JSON
-- Exportação em CSV
-- Comparação (previsto vs realizado)
-
-## 💾 Armazenamento
-
-Todos os dados são armazenados **localmente** no seu navegador usando localStorage. Seus dados:
-- ✅ Nunca saem do seu dispositivo
-- ✅ Persistem entre sessões
-- ✅ Podem ser exportados a qualquer momento
-
-## 📱 PWA (Progressive Web App)
-
-### Para Instalar
-- **Desktop**: Clique no ícone no endereço da barra do navegador (Chrome/Edge)
-- **Mobile**: Abra o menu e selecione "Instalar app"
-
-### Benefícios
-- Funciona offline
-- Acesso rápido como um app nativo
-- Sincronização automática
-
-## 🛠️ Tecnologias
-
-- **React 18**: Framework UI
-- **Recharts**: Visualização de dados
-- **Tailwind CSS**: Estilização
-- **Lucide React**: Ícones
-- **date-fns**: Manipulação de datas
-- **PWA**: Service Worker para offline
-
-## 📦 Build para Produção
-
-```bash
-npm run build
-```
-
-A pasta `build` estará pronta para deploy em qualquer servidor estático (Vercel, Netlify, GitHub Pages, etc).
-
-## 🔒 Privacidade
-
-Este app não coleta, armazena ou envia seus dados para servidores. Tudo é processado e armazenado localmente.
-
-## 📄 Estrutura do Projeto
+## Estrutura
 
 ```
 src/
-├── components/          # Componentes React
-│   ├── Dashboard.js
-│   ├── ExpenseForm.js
-│   ├── ExpenseList.js
-│   ├── SubscriptionManager.js
-│   ├── ForecastChart.js
-│   └── Reports.js
-├── utils/
-│   └── storage.js      # Funções de armazenamento local
-├── App.js              # Componente principal
-├── index.js            # Entry point
-└── index.css           # Estilos globais
+├── App.js                         navegação (abas, botão +, Ajustes)
+├── components/redesign/           telas: Home, Forecast, Transactions, QuickAdd, TxList, ui
+│   └── settings/                  Ajustes: Card, Subscriptions, Incomes, Charges, Installments,
+│                                  Categories, Reports, Import, Appearance
+├── styles/app.css                 visual (tokens de cor, modo claro/escuro)
+├── index.css                      reset básico de estilos
+└── utils/
+    ├── storage.js                 banco local: SQLite no Android + cópia no localStorage
+    ├── finance.js                 cálculos (mês, fatura, previsão, cobranças, parcelas)
+    ├── csvImport.js               leitura e revisão da fatura Nubank
+    ├── date.js                    datas sempre no fuso local
+    ├── exportFile.js              salvar/compartilhar PDF e CSV
+    └── theme.js                   tema claro, escuro ou do sistema
 ```
 
-## 🐛 Troubleshooting
+O plano de melhorias e as decisões tomadas estão em [docs/PLANO.md](docs/PLANO.md).
 
-**P: Meus dados desapareceram!**  
-R: localStorage é limpo se você limpar o cache do navegador. Sempre exporte seus dados!
+## Privacidade
 
-**P: Service Worker não funciona**  
-R: Service Workers só funcionam em HTTPS (ou localhost em desenvolvimento)
-
-**P: Posso sincronizar entre dispositivos?**  
-R: Atualmente não, mas você pode exportar de um e importar em outro (futura feature)
-
-## 📈 Roadmap Futuro
-
-- [ ] Importar dados (JSON/CSV)
-- [ ] Sincronização com Google Drive/OneDrive
-- [ ] Múltiplas carteiras
-- [ ] Orçamentos/Limites
-- [ ] Notificações de assinaturas
-- [ ] Gráficos mais avançados
-- [ ] Modo escuro
-- [ ] Multi-idiomas
-
-## 📝 Licença
-
-Livre para uso pessoal e comercial.
-
-## 👤 Autor
-
-Desenvolvido com ❤️ para organização financeira pessoal.
-
----
-
-**Dica**: Comece adicionando suas assinaturas (Netflix, Spotify, etc) e depois seus gastos do mês. A previsão será calculada automaticamente!
+Nada é enviado para servidores. Tudo fica no aparelho.

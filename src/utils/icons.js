@@ -3,7 +3,7 @@ import {
   ShoppingCart, Car, Heart, Gamepad2, BookOpen, MoreHorizontal,
   Home, Utensils, Zap, Music, Smartphone, Briefcase, Pill,
   Plane, Coffee, Gift, Dumbbell, Monitor, Wifi, Droplet,
-  Wind, Trash2, MapPin, DollarSign
+  Wind, Trash2, MapPin
 } from 'lucide-react';
 
 export const AVAILABLE_ICONS = [

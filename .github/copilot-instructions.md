@@ -1,38 +1,34 @@
-<!-- Use this file to provide workspace-specific custom instructions to Copilot. -->
+<!-- Instruções do projeto para o Copilot. -->
 
 # Gestor Financeiro - Instruções do Projeto
 
-## Visão Geral
-Progressive Web App (PWA) para controle financeiro pessoal com gastos, assinaturas, previsões e relatórios.
+App de finanças pessoais em React 18 + Vite + Capacitor 8 (Android). Componentes usam JSX em arquivos `.js`. Plano e decisões em `docs/PLANO.md`.
 
-## Estrutura do Projeto
-- `public/` - Arquivos estáticos (HTML, manifest, service worker)
-- `src/` - Código React
-  - `components/` - Componentes React (Dashboard, Forms, Charts)
-  - `utils/` - Funções utilitárias (storage, cálculos)
-  - `App.js` - Componente principal
-  - `index.css` - Estilos globais (Tailwind)
+## Regras importantes
 
-## Tecnologias
-- React 18 com Hooks
-- Tailwind CSS para estilização
-- Recharts para gráficos
-- localStorage para persistência
-- PWA (Service Worker, Manifest)
+- **Datas**: sempre strings `AAAA-MM-DD` no fuso local. Use `src/utils/date.js`
+  (`parseLocalDate`, `toDateString`, `todayString`, `addMonths`, `formatDateBR`).
+  Nunca `new Date('AAAA-MM-DD')` nem `toISOString().split('T')[0]` (dão o dia errado no Brasil).
+- **Dinheiro**: exiba com `formatBRL` (`src/utils/finance.js`). Divida parcelas em centavos.
+- **IDs**: use `newId()` de `storage.js`, nunca `Date.now()`.
+- **Cálculos** (totais do mês, fatura, previsão, cobranças, parcelas) ficam em `src/utils/finance.js`,
+  com testes. Componentes só exibem.
+- **Dados** passam por `storage` (`src/utils/storage.js`); depois de alterar, dispare
+  `window.dispatchEvent(new Event('expenseAdded'))` (ou `subscriptionAdded`, `incomeAdded`,
+  `categoryAdded`) para as telas atualizarem.
+- **Visual**: classes `gf-*` e tokens de cor em `src/styles/app.css`. Textos da interface em português.
 
-## Dados Armazenados
-- **expenses**: Gastos variáveis com { id, amount, category, description, date }
-- **subscriptions**: Assinaturas com { id, name, amount, frequency, active }
-- **categories**: Categorias de gastos com { id, name, color, icon }
+## Dados (storage)
 
-## Como Adicionar Features
-1. Tudo persiste em localStorage automaticamente via `storage.js`
-2. Disparar eventos: `window.dispatchEvent(new Event('expenseAdded'))`
-3. Componentes re-renderizam ao listener dos eventos
-4. Gráficos usam Recharts com dados transformados
+- `expenses`: { id, amount, category, description, date, installmentNumber, totalInstallments,
+  originalDate, isShared, sharedWith[], person?, paidWith? ('other' = Pix/dinheiro), importRef?, importBatch? }
+- `subscriptions`: { id, name, amount, frequency ('monthly' | 'annual'), category, startDate, canceledDate,
+  isShared, sharedWith[] }
+- `incomes`: { id, amount, type, description, date, isRecurring, frequency, baseDate }
+- `categories`: { id, name, color, icon }
+- `chargesPaid`: { [chave da cobrança]: true }
+- `settings`: { card: { closingDay, dueDay }, viewMode: 'calendar' | 'statement', theme: 'system' | 'light' | 'dark', ownAccounts: [nomes], chargeBuyers: boolean, personAliases: { 'nome no extrato': pessoa } }
 
-## Próximas Melhorias
-- Importar dados (JSON/CSV)
-- Sincronização com nuvem
-- Modo escuro
-- Notificações
+## Testes
+
+`npm test` (Vitest; o fuso de São Paulo já vem de `src/test-setup.js`). Arquivos `*.test.js` em `src/utils/`.

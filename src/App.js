@@ -1,278 +1,234 @@
-import React, { useState, useRef, useEffect } from 'react';
-import Dashboard from './components/Dashboard';
-import ExpenseList from './components/ExpenseList';
-import IncomeList from './components/IncomeList';
-import SubscriptionManager from './components/SubscriptionManager';
-import ForecastChart from './components/ForecastChart';
-import Reports from './components/Reports';
-import Charges from './components/Charges';
-import CategoryManager from './components/CategoryManager';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ChevronLeft, ChevronRight, Home as HomeIcon, BarChart3, List, Settings, Plus,
+  Repeat, ArrowDownLeft, Users, Tag, FileText, Upload, CreditCard, Wallet, Palette
+} from 'lucide-react';
+import Home from './components/redesign/Home';
+import Forecast from './components/redesign/Forecast';
+import Transactions from './components/redesign/Transactions';
+import QuickAdd from './components/redesign/QuickAdd';
+import Subscriptions from './components/redesign/settings/Subscriptions';
+import Incomes from './components/redesign/settings/Incomes';
+import Charges from './components/redesign/settings/Charges';
+import Categories from './components/redesign/settings/Categories';
+import Reports from './components/redesign/settings/Reports';
+import Import from './components/redesign/settings/Import';
+import Card from './components/redesign/settings/Card';
+import Appearance from './components/redesign/settings/Appearance';
+import Installments, { InstallmentSheet, purchaseOf } from './components/redesign/settings/Installments';
+import { parseLocalDate } from './utils/date';
+import { takePendingStorageError } from './utils/storage';
+import { applyTheme, watchSystemTheme } from './utils/theme';
+import { currentPeriod, MONTHS, statementOf, viewMode } from './utils/finance';
+
+const TABS = [
+  { id: 'home', label: 'Início', Icon: HomeIcon },
+  { id: 'forecast', label: 'Previsão', Icon: BarChart3 },
+  { id: 'list', label: 'Lançamentos', Icon: List },
+  { id: 'settings', label: 'Ajustes', Icon: Settings }
+];
+
+const SETTINGS_PAGES = [
+  { id: 'card', label: 'Cartão e fatura', hint: 'Dia de fechamento e meses por fatura', Icon: Wallet, Component: Card },
+  { id: 'subscriptions', label: 'Assinaturas e contas fixas', hint: 'Netflix, aluguel, academia', Icon: Repeat, Component: Subscriptions },
+  { id: 'incomes', label: 'Entradas', hint: 'Salário e rendas recorrentes', Icon: ArrowDownLeft, Component: Incomes },
+  { id: 'charges', label: 'Cobranças', hint: 'Quem te deve e o que já foi pago', Icon: Users, Component: Charges },
+  { id: 'installments', label: 'Compras parceladas', hint: 'Quanto falta pagar e editar a compra inteira', Icon: CreditCard, Component: Installments },
+  { id: 'categories', label: 'Categorias', hint: 'Nomes, cores e ícones', Icon: Tag, Component: Categories },
+  { id: 'reports', label: 'Relatórios', hint: 'Exportar PDF e CSV', Icon: FileText, Component: Reports },
+  { id: 'import', label: 'Importar CSV', hint: 'Fatura do cartão Nubank', Icon: Upload, Component: Import },
+  { id: 'appearance', label: 'Aparência', hint: 'Tema claro, escuro ou do sistema', Icon: Palette, Component: Appearance }
+];
+
+const DATA_EVENTS = ['expenseAdded', 'subscriptionAdded', 'incomeAdded', 'categoryAdded'];
 
 export default function App() {
-  const [activePage, setActivePage] = useState('overview'); // overview | expenses | config
-  const [activeTabs, setActiveTabs] = useState({
-    overview: 'dashboard', // dashboard | forecast
-    expenses: 'expenses', // expenses | subscriptions | charges
-    config: 'categories' // categories | reports
-  });
-  const [exitMessage, setExitMessage] = useState('');
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
+  const [tab, setTab] = useState('home');
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [settingsPage, setSettingsPage] = useState(null);
+  const [sheet, setSheet] = useState(null); // null | { editing }
+  const [purchase, setPurchase] = useState(null);
+  const [toast, setToast] = useState('');
+  const [, setDataVersion] = useState(0);
+  const toastTimer = useRef(null);
   const lastBackPress = useRef(0);
-  const currentPageRef = useRef({ activePage: 'overview', activeTabs: { overview: 'dashboard', expenses: 'expenses', config: 'categories' } });
+  const navRef = useRef({});
 
-  // Update refs whenever state changes
-  useEffect(() => {
-    currentPageRef.current = { activePage, activeTabs };
-  }, [activePage, activeTabs]);
-
-  useEffect(() => {
-    let unsubscribe = null;
-
-    const initBackButton = async () => {
-      try {
-        const { App } = await import('@capacitor/app');
-        
-        // Tentar configurar a StatusBar para garantir que está visível
-        try {
-          const { StatusBar } = await import('@capacitor/status-bar');
-          await StatusBar.setBackgroundColor({ color: '#2563eb' });
-          await StatusBar.setStyle({ style: 1 }); // light style
-        } catch (e) {
-          // StatusBar pode não estar disponível
-        }
-        
-        const handleBackButton = () => {
-          const { activePage: current, activeTabs: currentTabs } = currentPageRef.current;
-          
-          // Se não está no dashboard, volta para dashboard
-          if (current !== 'overview' || currentTabs.overview !== 'dashboard') {
-            setActivePage('overview');
-            setActiveTabs(prev => ({ ...prev, overview: 'dashboard' }));
-            return;
-          }
-          
-          // Se está no dashboard, mostra mensagem de saída
-          const now = Date.now();
-          if (lastBackPress.current && now - lastBackPress.current < 2000) {
-            // Duplo clique em menos de 2 segundos - sair
-            App.exitApp();
-          } else {
-            // Primeiro clique - mostrar mensagem
-            setExitMessage('Clique voltar mais uma vez para sair');
-            lastBackPress.current = now;
-            setTimeout(() => setExitMessage(''), 2000);
-          }
-        };
-
-        const listener = await App.addListener('backButton', handleBackButton);
-        unsubscribe = () => listener.remove();
-      } catch (e) {
-        // Capacitor não disponível (navegador)
-        unsubscribe = () => {};
-      }
-    };
-
-    initBackButton();
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+  const showToast = useCallback((message) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2200);
   }, []);
 
-  const pages = [
-    { id: 'overview', label: 'Dashboard' },
-    { id: 'expenses', label: 'Finanças' },
-    { id: 'config', label: 'Configurações' }
-  ];
+  // Telas novas leem do storage a cada render; os eventos só pedem um novo render.
+  useEffect(() => {
+    const bump = () => setDataVersion((v) => v + 1);
+    DATA_EVENTS.forEach((name) => window.addEventListener(name, bump));
+    return () => DATA_EVENTS.forEach((name) => window.removeEventListener(name, bump));
+  }, []);
 
-  const overviewTabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'forecast', label: 'Previsão' }
-  ];
+  useEffect(() => {
+    const onStorageError = () => {
+      if (!takePendingStorageError()) return;
+      setToast('Não consegui gravar no banco do celular. Seus dados estão na cópia local e o app tenta de novo a cada alteração.');
+      clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(''), 6000);
+    };
+    onStorageError(); // falha ao abrir o app, antes desta tela existir
+    window.addEventListener('storageError', onStorageError);
+    return () => window.removeEventListener('storageError', onStorageError);
+  }, []);
 
-  const expensesTabs = [
-    { id: 'expenses', label: 'Gastos' },
-    { id: 'subscriptions', label: 'Assinaturas' },
-    { id: 'charges', label: 'Cobranças' },
-    { id: 'incomes', label: 'Entradas' }
-  ];
+  navRef.current = { tab, settingsPage, sheet, purchase };
 
-  const configTabs = [
-    { id: 'categories', label: 'Categorias' },
-    { id: 'reports', label: 'Relatórios' }
-  ];
-
-  const getTabsForPage = () => {
-    if (activePage === 'overview') return overviewTabs;
-    if (activePage === 'expenses') return expensesTabs;
-    if (activePage === 'config') return configTabs;
-    return [];
-  };
-
-  const getActiveTab = () => {
-    if (activePage === 'overview') return activeTabs.overview;
-    if (activePage === 'expenses') return activeTabs.expenses;
-    if (activePage === 'config') return activeTabs.config;
-    return '';
-  };
-
-  const handleTabChange = (tabId) => {
-    setActiveTabs({
-      ...activeTabs,
-      [activePage]: tabId
-    });
-  };
-
-  // Swipe to change tabs
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.changedTouches[0].screenX;
-  };
-
-  const handleTouchEnd = (e) => {
-    touchEndX.current = e.changedTouches[0].screenX;
-    handleSwipe();
-  };
-
-  const handleSwipe = () => {
-    const tabs = getTabsForPage();
-    const currentTabIndex = tabs.findIndex(t => t.id === getActiveTab());
-    const swipeThreshold = 80; // Reduzir sensibilidade (era 50)
-    
-    if (touchStartX.current - touchEndX.current > swipeThreshold) {
-      // Swiped left (move to next tab)
-      if (currentTabIndex < tabs.length - 1) {
-        handleTabChange(tabs[currentTabIndex + 1].id);
+  useEffect(() => {
+    let remove = null;
+    const stopWatchingTheme = watchSystemTheme();
+    (async () => {
+      await applyTheme();
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        const listener = await CapApp.addListener('backButton', () => {
+          const current = navRef.current;
+          if (current.purchase) { setPurchase(null); return; }
+          if (current.sheet) { setSheet(null); return; }
+          if (current.settingsPage) { setSettingsPage(null); return; }
+          if (current.tab !== 'home') { setTab('home'); return; }
+          const now = Date.now();
+          if (now - lastBackPress.current < 2000) {
+            CapApp.exitApp();
+          } else {
+            lastBackPress.current = now;
+            showToast('Toque voltar de novo para sair');
+          }
+        });
+        remove = () => listener.remove();
+      } catch {
+        // Navegador: sem botão voltar nativo
       }
-    }
+    })();
+    return () => { if (remove) remove(); stopWatchingTheme(); };
+  }, [showToast]);
 
-    if (touchEndX.current - touchStartX.current > swipeThreshold) {
-      // Swiped right (move to previous tab)
-      if (currentTabIndex > 0) {
-        handleTabChange(tabs[currentTabIndex - 1].id);
-      }
-    }
+  const today = new Date();
+  // Mês 0 = o atual: a fatura aberta (visão por fatura) ou o mês do calendário.
+  const base = currentPeriod(today);
+  const viewed = new Date(base.year, base.month + monthOffset, 1);
+  const year = viewed.getFullYear();
+  const month = viewed.getMonth();
+  const showMonthNav = tab === 'home' || tab === 'list';
+
+  const goTab = (id) => {
+    setTab(id);
+    setSettingsPage(null);
+    window.scrollTo(0, 0);
   };
+
+  // calendar: lançamentos que não seguem a fatura (entradas, Pix/dinheiro).
+  const onSaved = (message, dateStr, { calendar: onlyCalendar = false } = {}) => {
+    setSheet(null);
+    showToast(message);
+    if (dateStr) {
+      const d = parseLocalDate(dateStr);
+      const target = viewMode() === 'statement' && !onlyCalendar ? statementOf(dateStr) : { year: d.getFullYear(), month: d.getMonth() };
+      setMonthOffset((target.year - base.year) * 12 + target.month - base.month);
+    }
+    if (tab === 'forecast' || tab === 'settings') goTab('home');
+  };
+
+  const openEdit = (entry) => setSheet({ editing: entry.raw });
+  const page = SETTINGS_PAGES.find((p) => p.id === settingsPage);
 
   return (
-    <div className="pwa-container min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg">
-        <div className="w-full px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Gestor Financeiro</h1>
-        </div>
-      </header>
-
-      {/* Tabs Navigation (within page) */}
-      <nav className="bg-white border-b border-gray-200 shadow-sm" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <div className="w-full flex">
-          {getTabsForPage().map((tab, index) => {
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex-1 px-4 py-3 font-medium text-sm whitespace-nowrap transition-all border-b-2 text-center overflow-hidden ${
-                  getActiveTab() === tab.id
-                    ? 'border-indigo-600 text-indigo-600 scale-100'
-                    : 'border-transparent text-gray-600 hover:text-indigo-600 scale-75'
-                }`}
-              >
-                {tab.label}
+    <>
+      <div className="gf-app">
+        <header className="gf-topbar">
+          {page ? (
+            <button type="button" className="gf-back" onClick={() => setSettingsPage(null)}>
+              <ChevronLeft size={20} /> Ajustes
+            </button>
+          ) : (
+            <span className="gf-screen-label">{TABS.find((t) => t.id === tab).label}</span>
+          )}
+          {showMonthNav && (
+            <div className="gf-month-nav">
+              <button type="button" className="gf-icon-btn" aria-label="Mês anterior" onClick={() => setMonthOffset((o) => o - 1)}>
+                <ChevronLeft size={18} />
               </button>
-            );
-          })}
+              <h1>{MONTHS[month]}{year !== today.getFullYear() ? ` ${String(year).slice(2)}` : ''}</h1>
+              <button type="button" className="gf-icon-btn" aria-label="Próximo mês" onClick={() => setMonthOffset((o) => o + 1)}>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
+          {page && <span className="gf-screen-label">{page.label}</span>}
+        </header>
+
+        <main>
+          {tab === 'home' && (
+            <Home
+              year={year}
+              month={month}
+              onOpenList={() => goTab('list')}
+              onOpenCharges={() => { setTab('settings'); setSettingsPage('charges'); }}
+              onOpenReports={() => { setTab('settings'); setSettingsPage('reports'); }}
+              onSelect={openEdit}
+            />
+          )}
+          {tab === 'forecast' && <Forecast />}
+          {tab === 'list' && <Transactions year={year} month={month} onSelect={openEdit} />}
+          {tab === 'settings' && !page && (
+            <nav className="gf-card gf-menu" aria-label="Ajustes">
+              {SETTINGS_PAGES.map(({ id, label, hint, Icon }) => (
+                <button type="button" key={id} onClick={() => { setSettingsPage(id); window.scrollTo(0, 0); }}>
+                  <Icon size={20} color="var(--accent)" />
+                  <span>{label}<small>{hint}</small></span>
+                  <ChevronRight size={18} color="var(--ink-3)" />
+                </button>
+              ))}
+            </nav>
+          )}
+          {tab === 'settings' && page && <page.Component onToast={showToast} onOpenSettings={(id) => { setSettingsPage(id); window.scrollTo(0, 0); }} />}
+        </main>
+      </div>
+
+      <nav className="gf-tabbar" aria-label="Navegação">
+        <div className="gf-tabbar-inner">
+          {TABS.slice(0, 2).map(({ id, label, Icon }) => (
+            <button type="button" key={id} className="gf-tab" aria-current={tab === id ? 'page' : undefined} onClick={() => goTab(id)}>
+              <Icon size={22} strokeWidth={1.8} />{label}
+            </button>
+          ))}
+          <button type="button" className="gf-fab" aria-label="Adicionar lançamento" onClick={() => setSheet({ editing: null })}>
+            <Plus size={26} strokeWidth={2.4} />
+          </button>
+          {TABS.slice(2).map(({ id, label, Icon }) => (
+            <button type="button" key={id} className="gf-tab" aria-current={tab === id ? 'page' : undefined} onClick={() => goTab(id)}>
+              <Icon size={22} strokeWidth={1.8} />{label}
+            </button>
+          ))}
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main 
-        key={`${activePage}-${getActiveTab()}`}
-        className="w-full px-4 py-6 pb-40 md:pb-32 min-h-[calc(100vh-200px)] flex-1"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div className="max-w-7xl mx-auto">
-        {/* Dashboard Page */}
-        {activePage === 'overview' && (
-          <>
-            {getActiveTab() === 'dashboard' && <Dashboard />}
-            {getActiveTab() === 'forecast' && <ForecastChart />}
-          </>
-        )}
-
-        {/* Expenses Page */}
-        {activePage === 'expenses' && (
-          <>
-            {getActiveTab() === 'expenses' && <ExpenseList />}
-            {getActiveTab() === 'incomes' && <IncomeList />}
-            {getActiveTab() === 'subscriptions' && <SubscriptionManager />}
-            {getActiveTab() === 'charges' && <Charges />}
-          </>
-        )}
-
-        {/* Config Page */}
-        {activePage === 'config' && (
-          <>
-            {getActiveTab() === 'categories' && <CategoryManager />}
-            {getActiveTab() === 'reports' && <Reports />}
-          </>
-        )}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="footer-safe-area fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
-        <div className="w-full px-4">
-          {/* Pages Navigation */}
-          <nav className="hidden md:flex w-full">
-            {pages.map((page, index) => {
-              return (
-                <button
-                  key={page.id}
-                  onClick={() => setActivePage(page.id)}
-                  className={`flex-1 px-4 py-3 font-medium transition-all border-t-2 text-center overflow-hidden ${
-                    activePage === page.id
-                      ? 'border-blue-600 text-blue-600 scale-100'
-                      : 'border-transparent text-gray-600 hover:text-blue-600 scale-75'
-                  }`}
-                >
-                  {page.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Mobile Bottom Navigation */}
-          <nav className="md:hidden flex w-full">
-            {pages.map((page, index) => {
-              return (
-                <button
-                  key={page.id}
-                  onClick={() => setActivePage(page.id)}
-                  className={`flex-1 px-2 py-3 font-medium text-center text-sm transition-all border-t-2 overflow-hidden ${
-                    activePage === page.id
-                      ? 'border-blue-600 text-blue-600 scale-100'
-                      : 'border-transparent text-gray-600 scale-75'
-                  }`}
-                >
-                  {page.label}
-                </button>
-              );
-            })}
-          </nav>
-
-
-        </div>
-      </footer>
-
-      {/* Exit Message Toast */}
-      {exitMessage && (
-        <div className="fixed bottom-24 left-4 right-4 md:bottom-auto md:top-8 bg-gray-800 text-white rounded-lg p-4 shadow-lg text-center z-40">
-          {exitMessage}
-        </div>
+      {sheet && (
+        <QuickAdd
+          key={sheet.editing?.id || 'new'}
+          editing={sheet.editing}
+          onClose={() => setSheet(null)}
+          onSaved={onSaved}
+          onEditPurchase={(expense) => { setSheet(null); setPurchase(purchaseOf(expense) || null); }}
+        />
       )}
-    </div>
+
+      {purchase && (
+        <InstallmentSheet
+          purchase={purchase}
+          onClose={() => setPurchase(null)}
+          onDone={(message) => { setPurchase(null); showToast(message); }}
+        />
+      )}
+
+      {toast && <div className="gf-toast" role="status">{toast}</div>}
+    </>
   );
 }
