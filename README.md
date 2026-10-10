@@ -1,7 +1,7 @@
 # Gestor Financeiro
 
 App Android (e web) de finanças pessoais: gastos, parcelas, assinaturas, entradas, previsão e
-importação da fatura do cartão Nubank. Os dados ficam só no aparelho.
+importação da fatura do cartão e do extrato da conta Nubank. Os dados ficam só no aparelho.
 
 ## Funcionalidades
 
@@ -14,10 +14,12 @@ importação da fatura do cartão Nubank. Os dados ficam só no aparelho.
   bater com o que o banco cobra
 - **Assinaturas** mensais e anuais (anuidade entra inteira no mês da renovação)
 - **Compras parceladas**: quanto falta pagar e edição da compra inteira
-- **Cobranças**: quem te deve em gastos divididos
+- **Cobranças**: quem te deve em gastos divididos e no que outra pessoa comprou no seu cartão;
+  um Pix de reembolso importado do extrato dá baixa nas mais antigas
 - **Relatórios** em PDF e CSV (para Excel em português), com filtros de categoria e pessoa
 - **Importar CSV** do Nubank (fatura do cartão ou extrato da conta): nomes limpos, categoria sugerida, agrupamento por nome,
   detecção do que já foi importado, Pix como gasto e recebidos como entrada, opção de desfazer
+- **Aparência**: tema claro, escuro ou seguindo o celular
 
 ## Desenvolvimento
 
@@ -59,7 +61,7 @@ src/
 └── utils/
     ├── storage.js                 banco local: SQLite no Android + cópia no localStorage
     ├── finance.js                 cálculos (mês, fatura, previsão, cobranças, parcelas)
-    ├── csvImport.js               leitura e revisão da fatura Nubank
+    ├── csvImport.js               leitura e revisão da fatura e do extrato Nubank
     ├── date.js                    datas sempre no fuso local
     ├── exportFile.js              salvar/compartilhar PDF e CSV
     └── theme.js                   tema claro, escuro ou do sistema
@@ -69,4 +71,10 @@ O plano de melhorias e as decisões tomadas estão em [docs/PLANO.md](docs/PLANO
 
 ## Privacidade
 
-Nada é enviado para servidores. Tudo fica no aparelho.
+Nada é enviado para servidores. Tudo fica no aparelho. Os exemplos nos testes usam nomes e
+valores fictícios.
+
+## Aviso
+
+Projeto pessoal, sem ligação com o Nubank. "Nubank" é citado só para indicar o formato dos
+arquivos CSV que o app consegue importar.
