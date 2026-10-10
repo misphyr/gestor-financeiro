@@ -67,8 +67,6 @@ src/
     └── theme.js                   tema claro, escuro ou do sistema
 ```
 
-O plano de melhorias e as decisões tomadas estão em [docs/PLANO.md](docs/PLANO.md).
-
 ## Privacidade
 
 Nada é enviado para servidores. Tudo fica no aparelho. Os exemplos nos testes usam nomes e

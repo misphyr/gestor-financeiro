@@ -11,3 +11,6 @@ dist
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Anotações pessoais do projeto (não publicar)
+docs/PLANO.md

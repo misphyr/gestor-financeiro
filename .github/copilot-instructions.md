@@ -2,7 +2,7 @@
 
 # Gestor Financeiro - Instruções do Projeto
 
-App de finanças pessoais em React 18 + Vite + Capacitor 8 (Android). Componentes usam JSX em arquivos `.js`. Plano e decisões em `docs/PLANO.md`.
+App de finanças pessoais em React 18 + Vite + Capacitor 8 (Android). Componentes usam JSX em arquivos `.js`.
 
 ## Regras importantes
 
